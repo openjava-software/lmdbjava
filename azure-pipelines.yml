@@ -1,0 +1,29 @@
+trigger:
+  branches:
+    include:
+    - master
+    - refs/tags/*
+
+jobs:
+- job:
+  displayName: 'Snapshot build'
+  condition: eq(variables['build.sourceBranch'], 'refs/heads/master')
+  pool:
+    vmImage: 'macOS-10.15'
+
+  steps:
+  - checkout: self
+
+  - task: Maven@3
+    inputs:
+      mavenPomFile: 'pom.xml'
+      goals: 'clean install'
+      options: '-Drevision=$(Build.BuildNumber)'
+      publishJUnitResults: false
+      testResultsFiles: '**/surefire-reports/TEST-*.xml'
+      javaHomeOption: 'JDKVersion'
+      jdkVersionOption: '1.11'
+      mavenVersionOption: 'Default'
+      mavenAuthenticateFeed: false
+      effectivePomSkip: false
+      sonarQubeRunAnalysis: false

@@ -23,6 +23,7 @@ package org.lmdbjava;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.io.File;
 import static java.io.File.createTempFile;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -33,6 +34,7 @@ import java.nio.file.Files;
 import static java.util.Locale.ENGLISH;
 import static java.util.Objects.nonNull;
 import static java.util.Objects.requireNonNull;
+import java.util.Properties;
 import static jnr.ffi.LibraryLoader.create;
 import jnr.ffi.Pointer;
 import static jnr.ffi.Runtime.getRuntime;
@@ -97,7 +99,8 @@ final class Library {
     if (SHOULD_USE_LIB) {
       libToLoad = getProperty(LMDB_NATIVE_LIB_PROP);
     } else if (SHOULD_EXTRACT && arch64 && linux) {
-      libToLoad = extract("org/lmdbjava/lmdbjava-native-linux-x86_64.so");
+      final String flavor = refineLinux();
+      libToLoad = extract(String.format("org/lmdbjava/lmdbjava-native-%s-x86_64.so", flavor));
     } else if (SHOULD_EXTRACT && arch64 && osx) {
       libToLoad = extract("org/lmdbjava/lmdbjava-native-osx-x86_64.dylib");
     } else if (SHOULD_EXTRACT && arch64 && windows) {
@@ -134,6 +137,28 @@ final class Library {
       return file.getAbsolutePath();
     } catch (final IOException e) {
       throw new LmdbException("Failed to extract " + name, e);
+    }
+  }
+
+  @SuppressWarnings({"checkstyle:returncount", "PMD.AvoidFileStream"})
+  private static String refineLinux() {
+    // /etc/os-release is a very cross-platform way to determine the linux distribution
+    // and just happens to be specified in properties format
+    try (InputStream inputStream = new FileInputStream("/etc/os-release")) {
+      final Properties properties = new Properties();
+      properties.load(inputStream);
+
+      final String flavor = String.valueOf(properties.get("ID")).trim();
+
+      // We only care if it's Alpine for now as it uses MUSL instead of GLIBC
+      if ("alpine".equals(flavor)) {
+        return "linux-alpine";
+      } else {
+        return "linux";
+      }
+    } catch (final IOException e) {
+      // Default to plain 'linux' if anything fails
+      return "linux";
     }
   }
 
